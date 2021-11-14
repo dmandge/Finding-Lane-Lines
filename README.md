@@ -1,56 +1,60 @@
-# **Finding Lane Lines on the Road** 
-[![Udacity - Self-Driving Car NanoDegree](https://s3.amazonaws.com/udacity-sdc/github/shield-carnd.svg)](http://www.udacity.com/drive)
-
-<img src="examples/laneLines_thirdPass.jpg" width="480" alt="Combined Image" />
-
 Overview
 ---
 
-When we drive, we use our eyes to decide where to go.  The lines on the road that show us where the lanes are act as our constant reference for where to steer the vehicle.  Naturally, one of the first things we would like to do in developing a self-driving car is to automatically detect lane lines using an algorithm.
+When we drive, we use our eyes to decide where to go.  The lines on the road that show us where the lanes are act as our constant reference for where to steer the vehicle.  The goal of this project is to write a software pipeline using image analysis techniques, that will identify position of the left and right lanes lines on the road, in the images and video stream.
 
-In this project you will detect lane lines in images using Python and OpenCV.  OpenCV means "Open-Source Computer Vision", which is a package that has many useful tools for analyzing images.  
+![1-testimage](https://user-images.githubusercontent.com/59345845/141664295-3b3b46d4-72a7-4f44-bd47-0ae398a509b5.JPG)
 
-To complete the project, two files will be submitted: a file containing project code and a file containing a brief write up explaining your solution. We have included template files to be used both for the [code](https://github.com/udacity/CarND-LaneLines-P1/blob/master/P1.ipynb) and the [writeup](https://github.com/udacity/CarND-LaneLines-P1/blob/master/writeup_template.md).The code file is called P1.ipynb and the writeup template is writeup_template.md 
+My pipeline consisted of 7 steps as listed below
+1. Grayscale –
+a. Grayscaling takes the original color image in three color channels (r,b,g) as input and returns an image with only one color channel. This is the first step towards building a code to detect boundaries of an object in an image or series of image. Rapid changes in the brightness (pixels) in a grayscale image is where we find strongest gradients (edges)
+b. Output image from function ‘grayscale’ is provided as input to function ‘gaussian_blur()’
+![2-Grayscale](https://user-images.githubusercontent.com/59345845/141664296-cdf4da65-863c-4143-bfbb-c67c2813018e.JPG)
+2. Gaussian Blur -
+a. Applying Gaussian blur suppresses noise and spurring gradients by averaging adjacent pixel values. We apply additional layer of adjustable Gaussian blurring before applying Canny edge detection to smooth the image out.
+b. Two inputs to the function ‘gaussain_blur()’ are grayscale image ‘gray’ and kernel size =3. Higher kernel size applies smoothing over a larger area.
+c. Output of image from function ‘gaussian_blur()’ is used to apply Canny edge detection
+![3-GaussianBlur](https://user-images.githubusercontent.com/59345845/141664297-4925caad-44d5-4bf8-8e85-0018cfba4216.JPG)
+3. Canny Edge Detection –
+a. Canny function from OpenCV detects strong gradients in the smoothened image ‘gaussian_img’ by highlighting pixels above specified ‘high_threshold’ value and rejecting pixels below ‘low_threshold’ values. Once strong edges are detected, pixels between high and low threshold interval are highlighted if they are connected to pixels above high threshold.
+b. The output image from Canny edge detection – ‘canny_img’ is a binary image with strong edges highlighted in white and rest of the area blacked out.
+c. I have set the low to high threshold ratio to 1:3 and in the middle region (60 to 160) of the 0 to 255 scale to detect sufficiently dark images.
+d. High threshold – 160
+e. Low threshold – 60
+![4-CannyEdgeDetection](https://user-images.githubusercontent.com/59345845/141664298-b91b0599-4ef6-4d8b-a28d-ac8b819d4de3.JPG)
+4. Region of interest –
+a. Region of interest is applied to narrow down the region so as to try and eliminate almost everything else on the image except lane lines
+b. The function ‘region_of_interest()’ takes image processed with Canny edge detection along with [x,y] coordinates of four vertices that would form polygon of region of interest.
+c. I have defined the four vertices as a fraction of height and width of the image focusing on the lower half where lanes generally lie in all the test images and videos.
+d. The output image contains only the image defined by polygon formed from four vertices and rest of the image is set to black
+![5-RegionOfInterest](https://user-images.githubusercontent.com/59345845/141664299-ea5828db-66df-426c-af9a-94f185617cd9.JPG)
 
-To meet specifications in the project, take a look at the requirements in the [project rubric](https://review.udacity.com/#!/rubrics/322/view)
+Hough lines –
+a. Hough lines function detects lines on the masked image using openCV function ‘HoughLinesP’, after applying Hough Transform based on following input parameters
+i. Masked image containing only region of interest
+ii. Distance and angular resolution of grid in Hough space – kept minimum at 1 and pi/180 (1 degree) respectively for a finer grid
+iii. Threshold number of intersections in a grid cell needed for it to be defined as line (=35) set high enough such that it only detects true lane lines and filters the noise out
+iv. Minimum length of line allowed (=5)
+v. Maximum gaps in pixels allowed to be part of same line(=2)
+b. Output of this function is array of lines with coordinates of their endpoints
+c. This is used in the function ‘draw_lines()’ to defined one single line for left and right lane lines
+![6-HoughTransform](https://user-images.githubusercontent.com/59345845/141664300-b15738cd-fd98-4a10-80ad-2bcd4de78e1d.JPG)
+![6-HoughTransform2](https://user-images.githubusercontent.com/59345845/141664301-7816422a-71fc-4695-baab-4cb9b9ab1ebb.JPG)
 
+6. Draw lines –
+a. In order to detect the complete left and right lane lines, and draw one single line on the left and right lanes, I modified the draw_lines() function as follows
+i. Iterate through each line endpoints (x1,y1,x2,y2) from ‘lines’ array and calculate their slope and center
+ Slope = (y1-y1)/(x2-x1)
+ Center = [(x2+x1)/2, (y2+y)/2]
+ii. If the slope is greater than a small positive number (> 0.1), the slope and corresponding center is saved in a separate array of left slope and left center. Same steps are followed for right lane if the slope is smaller than a small negative value (<-0.1)
+iii. Averaged all left/right slope and center values to get single slope and center for left and right lane
+iv. Two calculate endpoints of the left and right lane lines, I assumed two y coordinates equal to image height and 60% of image height. Then, I calculated corresponding x coordinates using slope and centers for left and right lanes
+ Formula used - (y-y')=M(x-x'), where [x’,y’] are coordinates of calculated average center
+v. Converted all coordinate values into integers to provide as input to line function in openCV
+vi. And used cv2.line function two draw lines on the original image with color red and thickness of 5
 
-Creating a Great Writeup
----
-For this project, a great writeup should provide a detailed response to the "Reflection" section of the [project rubric](https://review.udacity.com/#!/rubrics/322/view). There are three parts to the reflection:
+7. Overlay images with Hough lines –
+a. As final step, I overlaid the left and right lane lines on top of the original image using weighted image function. The function takes processed black image after Hough Transform with only lane lines drawn on it and overlays it on top of the original image
+b. Transparency of the processed image is set to a higher value than original image
 
-1. Describe the pipeline
-
-2. Identify any shortcomings
-
-3. Suggest possible improvements
-
-We encourage using images in your writeup to demonstrate how your pipeline works.  
-
-All that said, please be concise!  We're not looking for you to write a book here: just a brief description.
-
-You're not required to use markdown for your writeup.  If you use another method please just submit a pdf of your writeup. Here is a link to a [writeup template file](https://github.com/udacity/CarND-LaneLines-P1/blob/master/writeup_template.md). 
-
-
-The Project
----
-
-## If you have already installed the [CarND Term1 Starter Kit](https://github.com/udacity/CarND-Term1-Starter-Kit/blob/master/README.md) you should be good to go!   If not, you should install the starter kit to get started on this project. ##
-
-**Step 1:** Set up the [CarND Term1 Starter Kit](https://classroom.udacity.com/nanodegrees/nd013/parts/fbf77062-5703-404e-b60c-95b78b2f3f9e/modules/83ec35ee-1e02-48a5-bdb7-d244bd47c2dc/lessons/8c82408b-a217-4d09-b81d-1bda4c6380ef/concepts/4f1870e0-3849-43e4-b670-12e6f2d4b7a7) if you haven't already.
-
-**Step 2:** Open the code in a Jupyter Notebook
-
-You will complete the project code in a Jupyter notebook.  If you are unfamiliar with Jupyter Notebooks, check out <A HREF="https://www.packtpub.com/books/content/basics-jupyter-notebook-and-python" target="_blank">Cyrille Rossant's Basics of Jupyter Notebook and Python</A> to get started.
-
-Jupyter is an Ipython notebook where you can run blocks of code and see results interactively.  All the code for this project is contained in a Jupyter notebook. To start Jupyter in your browser, use terminal to navigate to your project directory and then run the following command at the terminal prompt (be sure you've activated your Python 3 carnd-term1 environment as described in the [CarND Term1 Starter Kit](https://github.com/udacity/CarND-Term1-Starter-Kit/blob/master/README.md) installation instructions!):
-
-`> jupyter notebook`
-
-A browser window will appear showing the contents of the current directory.  Click on the file called "P1.ipynb".  Another browser window will appear displaying the notebook.  Follow the instructions in the notebook to complete the project.  
-
-**Step 3:** Complete the project and submit both the Ipython notebook and the project writeup
-
-## How to write a README
-A well written README file can enhance your project and portfolio.  Develop your abilities to create professional README files by completing [this free course](https://www.udacity.com/course/writing-readmes--ud777).
-
+![final](https://user-images.githubusercontent.com/59345845/141664302-1ba70e1f-1e3d-4930-9095-daf34963df45.JPG)
